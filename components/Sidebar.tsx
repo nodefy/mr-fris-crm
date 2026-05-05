@@ -1,83 +1,70 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { LayoutDashboard, Users, LogOut } from 'lucide-react'
-import { cn } from '@/lib/cn'
-
-const nav = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/leads', label: 'Leads', icon: Users, exact: false },
-]
+import { useCrm } from '@/providers/crm-provider'
+import { STATUSES } from '@/lib/crm'
 
 export default function Sidebar() {
+  const { leads, activeStatus, setActiveStatus } = useCrm()
   const pathname = usePathname()
+  const isLeads = pathname.startsWith('/dashboard/leads')
+
+  const counts: Record<string, number> = { all: leads.length }
+  for (const s of STATUSES) counts[s.id] = 0
+  for (const l of leads) counts[l.status] = (counts[l.status] || 0) + 1
 
   return (
-    <aside
-      className="w-56 shrink-0 flex flex-col py-8 px-4 min-h-screen"
-      style={{
-        background: 'var(--surface)',
-        borderRight: '1px solid var(--cream-border)',
-      }}
-    >
-      {/* Brand */}
-      <div className="px-3 mb-8">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
-            style={{ background: 'var(--accent)', fontFamily: 'DM Serif Display, serif' }}
-          >
-            F
-          </div>
-          <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-            Mr Fris CRM
-          </span>
-        </div>
+    <aside className="sidebar">
+      <div className="brand">
+        <span className="brand-mark">F</span>
+        <span>Mr. Fris CRM</span>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-0.5">
-        {nav.map(({ href, label, icon: Icon, exact }) => {
-          const active = exact ? pathname === href : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
-                active
-                  ? 'font-semibold'
-                  : 'hover:bg-[var(--cream)]'
-              )}
-              style={{
-                color: active ? 'var(--accent)' : 'var(--ink-3)',
-                background: active ? 'var(--accent-light)' : undefined,
-              }}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {label}
-            </Link>
-          )
-        })}
-      </nav>
-
-      {/* User + logout */}
-      <div className="pt-4" style={{ borderTop: '1px solid var(--cream-border)' }}>
-        <div className="px-3 py-2 mb-1">
-          <p className="text-xs font-semibold" style={{ color: 'var(--ink)' }}>Klaas</p>
-          <p className="text-xs" style={{ color: 'var(--ink-4)' }}>klaas@mrfris.nl</p>
-        </div>
+      <div className="nav-group">
+        <div className="nav-label">Workspace</div>
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--cream)]"
-          style={{ color: 'var(--ink-4)' }}
+          className={'nav-item' + (isLeads && activeStatus === 'all' ? ' active' : '')}
+          onClick={() => setActiveStatus('all')}
         >
-          <LogOut className="w-4 h-4 shrink-0" />
-          Uitloggen
+          <UsersIcon />
+          <span>Alle leads</span>
+          <span className="nav-count">{counts.all}</span>
+        </button>
+      </div>
+
+      <div className="nav-group">
+        <div className="nav-label">Pipeline</div>
+        {STATUSES.map(s => (
+          <button
+            key={s.id}
+            className={'nav-item' + (isLeads && activeStatus === s.id ? ' active' : '')}
+            onClick={() => setActiveStatus(s.id)}
+          >
+            <span className={'status-tag ' + s.cls} style={{ padding: 0, background: 'transparent' }}>
+              <span className="dot" />
+            </span>
+            <span>{s.label}</span>
+            <span className="nav-count">{counts[s.id] || 0}</span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      <div className="nav-group">
+        <button className="nav-item" onClick={() => signOut({ callbackUrl: '/login' })}>
+          <LogoutIcon />
+          <span>Uitloggen</span>
         </button>
       </div>
     </aside>
   )
+}
+
+function UsersIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="nav-icon"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+}
+function LogoutIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="nav-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
 }

@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { CrmProvider } from '@/providers/crm-provider'
 import Sidebar from '@/components/Sidebar'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -7,11 +8,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!session) redirect('/login')
 
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--cream)' }}>
-      <Sidebar />
-      <main className="flex-1 min-w-0 p-8 md:p-10">
-        {children}
-      </main>
-    </div>
+    <CrmProvider>
+      <div className="crm-shell">
+        <Sidebar />
+        <div className="crm-main">
+          {children}
+        </div>
+      </div>
+    </CrmProvider>
   )
 }

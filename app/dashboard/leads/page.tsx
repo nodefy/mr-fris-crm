@@ -1,232 +1,114 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import Link from 'next/link'
-import leadsData from '@/lib/leads.json'
-import { Search, Phone, Globe, ExternalLink, ChevronUp, ChevronDown } from 'lucide-react'
-
-type Status = 'nieuw' | 'benaderd' | 'interesse' | 'klant' | 'afgewezen'
-
-const STATUS_OPTIONS: { value: Status; label: string; color: string; bg: string }[] = [
-  { value: 'nieuw',      label: 'Nieuw',      color: '#A09890', bg: '#A0989018' },
-  { value: 'benaderd',   label: 'Benaderd',   color: '#1B4F72', bg: '#1B4F7218' },
-  { value: 'interesse',  label: 'Interesse',  color: '#C4622D', bg: '#C4622D18' },
-  { value: 'klant',      label: 'Klant',      color: '#2D7A3A', bg: '#2D7A3A18' },
-  { value: 'afgewezen',  label: 'Afgewezen',  color: '#C0392B', bg: '#C0392B18' },
-]
-
-function getStatus(id: string): Status {
-  if (typeof window === 'undefined') return 'nieuw'
-  return (localStorage.getItem(`lead_status_${id}`) as Status) || 'nieuw'
-}
-
-function useLeadStatuses() {
-  const [tick, setTick] = useState(0)
-  function setStatus(id: string, status: Status) {
-    localStorage.setItem(`lead_status_${id}`, status)
-    setTick(t => t + 1)
-  }
-  return { getStatus, setStatus, tick }
-}
-
-type SortKey = 'naam' | 'score' | 'status'
+import { useCrm } from '@/providers/crm-provider'
+import { STATUS_BY_ID } from '@/lib/crm'
+import ListView from '@/components/leads/ListView'
+import KanbanView from '@/components/leads/KanbanView'
+import DetailDrawer from '@/components/leads/DetailDrawer'
 
 export default function LeadsPage() {
-  const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<Status | 'all'>('all')
-  const [sortKey, setSortKey] = useState<SortKey>('score')
-  const [sortAsc, setSortAsc] = useState(false)
-  const { setStatus, tick } = useLeadStatuses()
+  const { leads, activeStatus, updateLead, moveLead } = useCrm()
+  const [view, setView] = useState<'list' | 'kanban'>('list')
+  const [query, setQuery] = useState('')
+  const [openId, setOpenId] = useState<number | null>(null)
 
-  const leads = useMemo(() => {
-    let list = leadsData.map(l => ({
-      ...l,
-      currentStatus: (typeof window !== 'undefined'
-        ? (localStorage.getItem(`lead_status_${l.id}`) as Status)
-        : null) || 'nieuw' as Status,
-    }))
-
-    if (search) {
-      const q = search.toLowerCase()
-      list = list.filter(l =>
-        l.naam.toLowerCase().includes(q) ||
-        l.praktijk_naam.toLowerCase().includes(q) ||
-        l.adres.toLowerCase().includes(q)
-      )
-    }
-
-    if (filterStatus !== 'all') {
-      list = list.filter(l => l.currentStatus === filterStatus)
-    }
-
-    list.sort((a, b) => {
-      let cmp = 0
-      if (sortKey === 'naam') cmp = a.naam.localeCompare(b.naam)
-      else if (sortKey === 'score') cmp = parseFloat(b.score || '0') - parseFloat(a.score || '0')
-      else if (sortKey === 'status') cmp = a.currentStatus.localeCompare(b.currentStatus)
-      return sortAsc ? -cmp : cmp
+  const filtered = useMemo(() => {
+    return leads.filter(l => {
+      if (activeStatus !== 'all' && l.status !== activeStatus) return false
+      if (query) {
+        const q = query.toLowerCase()
+        if (![l.name, l.practice, l.address, l.phone].filter(Boolean).join(' ').toLowerCase().includes(q)) return false
+      }
+      return true
     })
+  }, [leads, activeStatus, query])
 
-    return list
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, filterStatus, sortKey, sortAsc, tick])
+  const openLead = openId !== null ? leads.find(l => l.id === openId) ?? null : null
+  const openIndex = openLead ? filtered.findIndex(l => l.id === openLead.id) : -1
+  const hasPrev = openIndex > 0
+  const hasNext = openIndex !== -1 && openIndex < filtered.length - 1
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortAsc(a => !a)
-    else { setSortKey(key); setSortAsc(false) }
-  }
-
-  const SortIcon = ({ k }: { k: SortKey }) =>
-    sortKey === k
-      ? sortAsc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-      : null
+  const label = activeStatus === 'all' ? 'Alle leads' : (STATUS_BY_ID[activeStatus]?.label ?? '')
 
   return (
-    <div className="max-w-6xl">
-      {/* Header */}
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl" style={{ fontFamily: 'DM Serif Display, serif', color: 'var(--ink)' }}>
-            Leads
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--ink-4)' }}>
-            {leads.length} van {leadsData.length} mondhygiënisten
-          </p>
-        </div>
+    <>
+      {/* Topbar */}
+      <div className="topbar">
+        <span className="crumb">
+          Leads <span style={{ margin: '0 6px', opacity: 0.4 }}>/</span> <strong>{label}</strong>
+        </span>
+        <span className="spacer" />
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--ink-4)' }} />
+      {/* Toolbar */}
+      <div className="toolbar">
+        <div className="view-switch">
+          <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
+            <ListIcon size={13} /><span>Lijst</span>
+          </button>
+          <button className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}>
+            <KanbanIcon size={13} /><span>Kanban</span>
+          </button>
+        </div>
+
+        <div className="search">
+          <SearchIcon size={13} />
           <input
-            type="text"
-            placeholder="Zoek op naam of praktijk…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--cream-border)',
-              color: 'var(--ink)',
-            }}
+            placeholder="Zoek op naam, praktijk, adres…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
           />
-        </div>
-        {/* Status filter */}
-        <select
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value as Status | 'all')}
-          className="px-4 py-2.5 rounded-xl text-sm outline-none"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--cream-border)',
-            color: 'var(--ink)',
-          }}
-        >
-          <option value="all">Alle statussen</option>
-          {STATUS_OPTIONS.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ background: 'var(--surface)', border: '1px solid var(--cream-border)' }}
-      >
-        {/* Table header */}
-        <div
-          className="grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-widest"
-          style={{ color: 'var(--ink-4)', borderBottom: '1px solid var(--cream-border)' }}
-        >
-          <button className="flex items-center gap-1 text-left hover:opacity-70 transition-opacity" onClick={() => toggleSort('naam')}>
-            Naam <SortIcon k="naam" />
-          </button>
-          <span>Praktijk</span>
-          <span>Telefoon</span>
-          <span>Website</span>
-          <button className="flex items-center gap-1 hover:opacity-70 transition-opacity" onClick={() => toggleSort('score')}>
-            Score <SortIcon k="score" />
-          </button>
-          <button className="flex items-center gap-1 hover:opacity-70 transition-opacity" onClick={() => toggleSort('status')}>
-            Status <SortIcon k="status" />
-          </button>
-        </div>
-
-        {/* Rows */}
-        <div className="divide-y" style={{ borderColor: 'var(--cream-border)' }}>
-          {leads.length === 0 && (
-            <div className="px-5 py-12 text-center text-sm" style={{ color: 'var(--ink-4)' }}>
-              Geen leads gevonden.
-            </div>
+          {query && (
+            <button className="icon-btn" style={{ width: 18, height: 18 }} onClick={() => setQuery('')}>
+              <XIcon size={12} />
+            </button>
           )}
-          {leads.map(lead => {
-            const st = STATUS_OPTIONS.find(s => s.value === lead.currentStatus) || STATUS_OPTIONS[0]
-            return (
-              <div
-                key={lead.id}
-                className="grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-[var(--cream)] transition-colors"
-              >
-                <Link
-                  href={`/dashboard/leads/${lead.id}`}
-                  className="text-sm font-medium truncate hover:underline"
-                  style={{ color: 'var(--ink)' }}
-                >
-                  {lead.naam}
-                </Link>
-                <p className="text-sm truncate" style={{ color: 'var(--ink-3)' }}>
-                  {lead.praktijk_naam.replace(/, Amsterdam$/, '')}
-                </p>
-                <span className="text-sm" style={{ color: 'var(--ink-3)' }}>
-                  {lead.telefoon ? (
-                    <a href={`tel:${lead.telefoon}`} className="flex items-center gap-1 hover:underline">
-                      <Phone className="w-3.5 h-3.5" />
-                      {lead.telefoon}
-                    </a>
-                  ) : (
-                    <span style={{ color: 'var(--ink-4)' }}>—</span>
-                  )}
-                </span>
-                <span>
-                  {lead.website ? (
-                    <a
-                      href={lead.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs hover:underline"
-                      style={{ color: 'var(--blue)' }}
-                    >
-                      <Globe className="w-3.5 h-3.5" />
-                      Website
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  ) : (
-                    <span className="text-sm" style={{ color: 'var(--ink-4)' }}>—</span>
-                  )}
-                </span>
-                <span
-                  className="text-xs font-semibold px-2 py-0.5 rounded-md whitespace-nowrap"
-                  style={{ background: '#2D7A3A18', color: '#2D7A3A' }}
-                >
-                  {lead.score || '—'}
-                </span>
-                <select
-                  value={lead.currentStatus}
-                  onChange={e => setStatus(lead.id, e.target.value as Status)}
-                  className="text-xs font-semibold px-2 py-1 rounded-lg outline-none cursor-pointer"
-                  style={{ background: st.bg, color: st.color, border: 'none' }}
-                >
-                  {STATUS_OPTIONS.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-            )
-          })}
         </div>
+
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 12, color: 'var(--text-subtle)' }}>
+          {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
+        </span>
       </div>
-    </div>
+
+      {/* Content */}
+      <div className="crm-content">
+        {filtered.length === 0 ? (
+          <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--text-subtle)', fontSize: 13 }}>
+            Geen leads gevonden.
+          </div>
+        ) : view === 'list' ? (
+          <ListView leads={filtered} onOpen={setOpenId} />
+        ) : (
+          <KanbanView leads={filtered} onOpen={setOpenId} onMove={moveLead} />
+        )}
+      </div>
+
+      {openLead && (
+        <DetailDrawer
+          lead={openLead}
+          onClose={() => setOpenId(null)}
+          onUpdate={updateLead}
+          onPrev={() => { if (hasPrev) setOpenId(filtered[openIndex - 1].id) }}
+          onNext={() => { if (hasNext) setOpenId(filtered[openIndex + 1].id) }}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+        />
+      )}
+    </>
   )
+}
+
+function SearchIcon({ size = 15 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+}
+function ListIcon({ size = 14 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/></svg>
+}
+function KanbanIcon({ size = 14 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="13" rx="1"/></svg>
+}
+function XIcon({ size = 12 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
 }
