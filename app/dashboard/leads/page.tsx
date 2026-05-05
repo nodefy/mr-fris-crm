@@ -10,19 +10,22 @@ import DetailDrawer from '@/components/leads/DetailDrawer'
 export default function LeadsPage() {
   const { leads, activeStatus, updateLead, moveLead } = useCrm()
   const [view, setView] = useState<'list' | 'kanban'>('list')
-  const [query, setQuery] = useState('')
+  const [filterNaam, setFilterNaam] = useState('')
+  const [filterPraktijk, setFilterPraktijk] = useState('')
+  const [filterAdres, setFilterAdres] = useState('')
   const [openId, setOpenId] = useState<number | null>(null)
+
+  const hasFilters = filterNaam || filterPraktijk || filterAdres
 
   const filtered = useMemo(() => {
     return leads.filter(l => {
       if (activeStatus !== 'all' && l.status !== activeStatus) return false
-      if (query) {
-        const q = query.toLowerCase()
-        if (![l.name, l.practice, l.address, l.phone].filter(Boolean).join(' ').toLowerCase().includes(q)) return false
-      }
+      if (filterNaam && !l.name.toLowerCase().includes(filterNaam.toLowerCase())) return false
+      if (filterPraktijk && !l.practice.toLowerCase().includes(filterPraktijk.toLowerCase())) return false
+      if (filterAdres && !l.address.toLowerCase().includes(filterAdres.toLowerCase())) return false
       return true
     })
-  }, [leads, activeStatus, query])
+  }, [leads, activeStatus, filterNaam, filterPraktijk, filterAdres])
 
   const openLead = openId !== null ? leads.find(l => l.id === openId) ?? null : null
   const openIndex = openLead ? filtered.findIndex(l => l.id === openLead.id) : -1
@@ -31,9 +34,14 @@ export default function LeadsPage() {
 
   const label = activeStatus === 'all' ? 'Alle leads' : (STATUS_BY_ID[activeStatus]?.label ?? '')
 
+  function clearFilters() {
+    setFilterNaam('')
+    setFilterPraktijk('')
+    setFilterAdres('')
+  }
+
   return (
     <>
-      {/* Topbar */}
       <div className="topbar">
         <span className="crumb">
           Leads <span style={{ margin: '0 6px', opacity: 0.4 }}>/</span> <strong>{label}</strong>
@@ -41,42 +49,56 @@ export default function LeadsPage() {
         <span className="spacer" />
       </div>
 
-      {/* Toolbar */}
       <div className="toolbar">
-        <div className="view-switch">
-          <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
-            <ListIcon size={13} /><span>Lijst</span>
-          </button>
-          <button className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}>
-            <KanbanIcon size={13} /><span>Kanban</span>
-          </button>
-        </div>
+        <div className="toolbar-top">
+          <div className="view-switch">
+            <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
+              <ListIcon size={13} /><span>Lijst</span>
+            </button>
+            <button className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}>
+              <KanbanIcon size={13} /><span>Kanban</span>
+            </button>
+          </div>
 
-        <div className="search">
-          <SearchIcon size={13} />
-          <input
-            placeholder="Zoek op naam, praktijk, adres…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-          {query && (
-            <button className="icon-btn" style={{ width: 18, height: 18 }} onClick={() => setQuery('')}>
-              <XIcon size={12} />
+          <span style={{ flex: 1 }} />
+
+          {hasFilters && (
+            <button className="btn ghost" style={{ fontSize: 12, gap: 4 }} onClick={clearFilters}>
+              <XIcon size={12} /> Filters wissen
             </button>
           )}
+
+          <span style={{ fontSize: 12, color: 'var(--text-subtle)', flexShrink: 0 }}>
+            {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
+          </span>
         </div>
 
-        <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: 'var(--text-subtle)' }}>
-          {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
-        </span>
+        <div className="toolbar-filters">
+          <FilterField
+            label="Naam"
+            value={filterNaam}
+            onChange={setFilterNaam}
+            placeholder="Bijv. Jansen"
+          />
+          <FilterField
+            label="Praktijk"
+            value={filterPraktijk}
+            onChange={setFilterPraktijk}
+            placeholder="Bijv. Tandartsenpraktijk"
+          />
+          <FilterField
+            label="Adres"
+            value={filterAdres}
+            onChange={setFilterAdres}
+            placeholder="Bijv. Amsterdam-Noord"
+          />
+        </div>
       </div>
 
-      {/* Content */}
       <div className="crm-content">
         {filtered.length === 0 ? (
           <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--text-subtle)', fontSize: 13 }}>
-            Geen leads gevonden.
+            Geen leads gevonden.{hasFilters && <> <button className="btn ghost" style={{ marginLeft: 8, fontSize: 12 }} onClick={clearFilters}>Filters wissen</button></>}
           </div>
         ) : view === 'list' ? (
           <ListView leads={filtered} onOpen={setOpenId} />
@@ -100,9 +122,32 @@ export default function LeadsPage() {
   )
 }
 
-function SearchIcon({ size = 15 }: { size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+function FilterField({ label, value, onChange, placeholder }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
+  return (
+    <div className="filter-field">
+      <label>{label}</label>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+      {value && (
+        <button
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-subtle)', display: 'flex', alignItems: 'center', cursor: 'pointer', padding: 0 }}
+          onClick={() => onChange('')}
+        >
+          <XIcon size={11} />
+        </button>
+      )}
+    </div>
+  )
 }
+
 function ListIcon({ size = 14 }: { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/></svg>
 }

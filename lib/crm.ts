@@ -36,11 +36,11 @@ export const STATUSES: { id: Status; label: string; cls: string; color: string; 
 
 export const STATUS_BY_ID = Object.fromEntries(STATUSES.map(s => [s.id, s])) as Record<Status, typeof STATUSES[0]>
 
-export const OWNERS = ['Niemand', 'Sanne', 'Joris', 'Mila']
+export const OWNERS = ['Klaas', 'Pierre']
 
 const LS_KEY = 'mrfris-crm-state-v1'
 
-const TAGS_POOL = [
+export const TAGS_POOL = [
   ['Centrum'], ['Noord'], ['Zuid'], ['Oost'], ['West'],
   ['Hoge score'], ['Groot praktijk'], ['Solo'], ['Ketting'], [],
 ]
@@ -59,13 +59,13 @@ function seedNotes(leadId: number, status: Status): Note[] {
   const day = 86400000
   const items: Note[] = []
   if (status !== 'new') {
-    items.push({ id: `seed-${leadId}-1`, type: 'call', author: 'Sanne', ts: now - 4 * day, body: 'Eerste contact gehad, gaat het bleek-traject met patiënten bespreken. Stuur info-pakket.' })
+    items.push({ id: `seed-${leadId}-1`, type: 'call', author: 'Klaas', ts: now - 4 * day, body: 'Eerste contact gehad, gaat het bleek-traject met patiënten bespreken. Stuur info-pakket.' })
   }
   if (status === 'talking' || status === 'customer') {
-    items.push({ id: `seed-${leadId}-2`, type: 'email', author: 'Joris', ts: now - 2 * day, body: 'Productinfo + tarieven verstuurd. Wacht op reactie deze week.' })
+    items.push({ id: `seed-${leadId}-2`, type: 'email', author: 'Pierre', ts: now - 2 * day, body: 'Productinfo + tarieven verstuurd. Wacht op reactie deze week.' })
   }
   if (status === 'customer') {
-    items.push({ id: `seed-${leadId}-3`, type: 'meeting', author: 'Sanne', ts: now - 1 * day, body: 'Demo op locatie geweest. Gaan starten met 20 starter-kits.' })
+    items.push({ id: `seed-${leadId}-3`, type: 'meeting', author: 'Klaas', ts: now - 1 * day, body: 'Demo op locatie geweest. Gaan starten met 20 starter-kits.' })
   }
   return items
 }
@@ -77,7 +77,7 @@ export function hydrateLeads(raw: Omit<Lead, 'status' | 'owner' | 'tags' | 'note
   return raw.map((l, i) => {
     const seed = stored[l.id]
     const status = (seed?.status || defaultStatus(l.score, i)) as Status
-    const owner = seed?.owner || (status === 'new' ? 'Niemand' : OWNERS[1 + (i % 3)])
+    const owner = seed?.owner || (i % 2 === 0 ? 'Klaas' : 'Pierre')
     const tags = seed?.tags || TAGS_POOL[i % TAGS_POOL.length]
     const notes = seed?.notes || seedNotes(l.id, status)
     const lastContact = seed?.lastContact ?? (notes.length ? notes[notes.length - 1].ts : null)
