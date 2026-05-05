@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+:root {
+  --cream: #F5F0E8;
+  --cream-dark: #EDE8DC;
+  --cream-border: #E0D9CE;
+  --surface: #FFFFFF;
+  --ink: #0F0E0C;
+  --ink-2: #3D3A34;
+  --ink-3: #6B6560;
+  --ink-4: #A09890;
+  --accent: #1A3A2A;
+  --accent-light: #E8F0EB;
+  --green: #2D7A3A;
+  --blue: #1B4F72;
+  --orange: #C4622D;
+  --red: #C0392B;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .serif {
+  font-family: 'DM Serif Display', Georgia, serif;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--cream-border); border-radius: 2px; }
+
+::selection { background: #D4C9B5; }
